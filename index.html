@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,interactive-widget=overlays-content">
 <title>Python CUI Editor</title>
 <style>
 :root{--bg:#14161b;--panel:#1d2027;--line:#2d313b;--fg:#e8eaf0;--mut:#8b91a0;--acc:#5b8cff;--vh:100vh;--side:240px}
@@ -177,19 +177,34 @@ function render(){
   layer.innerHTML=h;
   $('hint').style.display=(L.length===1&&!L[0].length)?'block':'none';
   ta.style.left=cw$(cc);ta.style.top=cw$(doc.cur.r*2);
+  ensureVisible();
 }
 
 /* ===== Layout (viewport-aware, 16:9) ===== */
+let baseH=0,baseW=0;   // layout height WITHOUT the on-screen keyboard
+function ensureVisible(){
+  // keyboard open: keep canvas size, slide it up just enough to show the cursor line
+  const vv=window.visualViewport;let s=0;
+  if(vv&&baseH&&vv.height<baseH*0.75){
+    const cw=canvas.clientWidth/COLS,top=canvas.offsetTop+doc.cur.r*2*cw;
+    const vTop=vv.offsetTop+4,vBot=vv.offsetTop+vv.height-4;
+    s=Math.min(0,vBot-(top+4*cw));
+    if(top+s<vTop)s=vTop-top;
+  }
+  canvas.style.transform=s?`translateY(${s}px)`:'';
+}
 function layout(){
-  const vv=window.visualViewport;
-  document.documentElement.style.setProperty('--vh',(vv?vv.height:innerHeight)+'px');
-  app.style.transform=vv&&vv.offsetTop?`translateY(${vv.offsetTop}px)`:'';
+  const vv=window.visualViewport,vh=vv?vv.height:innerHeight;
+  if(innerWidth!==baseW){baseW=innerWidth;baseH=Math.max(innerHeight,vh)}
+  else if(vh>=baseH*0.75)baseH=vh;   // no keyboard: follow real height; keyboard: keep old
+  document.documentElement.style.setProperty('--vh',baseH+'px');
   const cs=getComputedStyle(stage);
   const pw=stage.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
   const ph=stage.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
   const cw=Math.max(1,Math.floor(Math.min(pw,ph*16/9)/COLS*4)/4);
   canvas.style.setProperty('--cw',cw+'px');
   canvas.style.width=cw*COLS+'px';canvas.style.height=cw*ROWS*2+'px';
+  ensureVisible();
 }
 new ResizeObserver(layout).observe(stage);
 addEventListener('resize',layout);addEventListener('orientationchange',()=>setTimeout(layout,150));
