@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,interactive-widget=overlays-content">
@@ -25,7 +25,7 @@ body.closed #side{display:none}
 .row{display:flex;gap:14px;align-items:flex-start}
 .item{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--mut)}
 .circ{width:56px;height:56px;border-radius:50%;border:3px solid #fff;background:#444;color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 0 0 1px #000 inset}
-.circ.dl{background:var(--acc);border-color:var(--acc)}
+.circ.dl{background:var(--acc);border-color:var(--acc);font-size:10px;font-weight:700;letter-spacing:-.2px}
 .circ.sm{width:44px;height:44px;font-size:20px;background:#2a2e3a;border:1px solid var(--line)}
 .circ:active{transform:scale(.94)}
 #toggle{position:fixed;z-index:10;top:calc(env(safe-area-inset-top) + 6px);right:calc(env(safe-area-inset-right) + 6px);width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:rgba(29,32,39,.88);color:var(--fg);font-size:22px;cursor:pointer;padding:0}
@@ -38,6 +38,23 @@ body.closed #side{display:none}
 .fields{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:6px;font-size:11px;color:var(--mut)}
 .fields input{width:100%;min-width:0;height:36px;border-radius:6px;border:1px solid var(--line);background:#14161b;color:var(--fg);padding:0 6px;font:16px monospace}
 .note{font-size:11px;color:var(--mut);line-height:1.5}
+#side{overflow-x:hidden}
+.row{flex-wrap:wrap;gap:12px}
+#gpanel{display:flex;flex-direction:column;gap:10px;min-width:0}
+#gpanel[hidden]{display:none}
+.gends{display:flex;align-items:center;gap:8px;min-width:0}
+.gsw{flex:none;width:44px;height:44px;border-radius:50%;border:3px solid #555;padding:0;cursor:pointer}
+.gsw.on{border-color:#fff;box-shadow:0 0 0 2px var(--acc)}
+#gPrev{flex:1;min-width:0;height:44px;border-radius:8px;border:1px solid var(--line)}
+.gpat{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.gpat button{height:40px;min-width:0;border-radius:8px;border:2px solid var(--line);padding:0;cursor:pointer}
+.gpat button.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+#gsv{position:relative;height:100px;border-radius:6px;touch-action:none;cursor:crosshair}
+#ghue{position:relative;height:22px;border-radius:11px;touch-action:none;background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}
+#ghueT{top:50%}
+#ghex{width:100%;min-width:0;height:36px;border-radius:6px;border:1px solid var(--line);background:#14161b;color:var(--fg);padding:0 8px;font:16px monospace}
+.wide{height:44px;border-radius:10px;border:0;background:var(--acc);color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+.wide:active{transform:scale(.98)}
 @media (max-width:900px),(max-height:520px){
  #stage{padding:0}
  #side{position:absolute;right:0;top:0;bottom:0;display:flex!important;transform:translateX(100%);visibility:hidden;transition:transform .18s,visibility 0s .18s;padding-right:calc(14px + env(safe-area-inset-right));box-shadow:-8px 0 24px rgba(0,0,0,.5);width:min(var(--side),70vw)}
@@ -50,14 +67,15 @@ body.closed #side{display:none}
 <div id="app">
  <main id="stage">
   <div id="canvas" aria-label="Editing canvas">
-   <div id="inner"><span id="m"></span><div id="layer"></div><textarea id="ta" wrap="off" placeholder="ここをタップして入力 / Tap to type" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Text input"></textarea></div>
+   <div id="inner"><span id="m"></span><div id="layer"></div><textarea id="ta" wrap="off" placeholder="Tap here to type" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Text input"></textarea></div>
   </div>
  </main>
  <div id="scrim"></div>
  <aside id="side" aria-label="Controls">
   <div class="row">
-   <div class="item"><button class="circ" id="colorBtn" aria-label="文字色 Text color"></button>文字色</div>
-   <div class="item"><button class="circ dl" id="dlBtn" aria-label="main.pyをダウンロード">⬇</button>main.py</div>
+   <div class="item"><button class="circ" id="colorBtn" aria-label="Text color"></button>Color</div>
+   <div class="item"><button class="circ dl" id="dlBtn" aria-label="Download main.py">Download</button>main.py</div>
+   <div class="item"><button class="circ" id="gBtn" aria-label="Gradient"></button>Gradient</div>
   </div>
   <div id="picker" hidden>
    <div id="sv"><i class="th" id="svT"></i></div>
@@ -69,13 +87,31 @@ body.closed #side{display:none}
     <label>B<input id="b" type="number" min="0" max="255" inputmode="numeric"></label>
    </div>
   </div>
-  <div class="row">
-   <div class="item"><button class="circ sm" id="undoBtn" aria-label="元に戻す">↶</button>戻す</div>
-   <div class="item"><button class="circ sm" id="redoBtn" aria-label="やり直す">↷</button>進む</div>
+  <div id="gpanel" hidden>
+   <div class="gends">
+    <button class="gsw on" id="gS" aria-label="Start color"></button>
+    <div id="gPrev"></div>
+    <button class="gsw" id="gE" aria-label="End color"></button>
+   </div>
+   <div class="gpat" id="gPat">
+    <button data-p="h" aria-label="Horizontal (left to right)" style="background:linear-gradient(to right,#3a3f4b,#fff)"></button>
+    <button data-p="v" aria-label="Vertical (top to bottom)" style="background:linear-gradient(to bottom,#3a3f4b,#fff)"></button>
+    <button data-p="bl" aria-label="Top right to bottom left" style="background:linear-gradient(to bottom left,#3a3f4b,#fff)"></button>
+    <button data-p="br" aria-label="Top left to bottom right" style="background:linear-gradient(to bottom right,#3a3f4b,#fff)"></button>
+   </div>
+   <div id="gsv"><i class="th" id="gsvT"></i></div>
+   <div id="ghue"><i class="th" id="ghueT"></i></div>
+   <input id="ghex" maxlength="7" autocomplete="off" spellcheck="false" aria-label="HEX">
+   <p class="note" id="gInfo"></p>
+   <button class="wide" id="gApply">Apply to selection</button>
   </div>
-  <p class="note">96×27マス(16:9)。全角文字は2マス。範囲を選んで色を選ぶと、その部分だけ色が変わります。</p>
+  <div class="row">
+   <div class="item"><button class="circ sm" id="undoBtn" aria-label="Undo">↶</button>Undo</div>
+   <div class="item"><button class="circ sm" id="redoBtn" aria-label="Redo">↷</button>Redo</div>
+  </div>
+  <p class="note">96×27 cells (16:9). Full-width characters take 2 cells. Select a range, then pick a color to recolor just that part.</p>
  </aside>
- <button id="toggle" aria-label="サイドバー" aria-expanded="false">☰</button>
+ <button id="toggle" aria-label="Sidebar" aria-expanded="false">☰</button>
 </div>
 <script>
 (()=>{
@@ -239,9 +275,65 @@ $('hex').addEventListener('input',e=>{
     fromRgb(...v);commit();
   });
 });
-$('colorBtn').addEventListener('click',()=>{const p=$('picker');p.hidden=!p.hidden});
+$('colorBtn').addEventListener('click',()=>{const p=$('picker');p.hidden=!p.hidden;if(!p.hidden)$('gpanel').hidden=true});
 $('undoBtn').addEventListener('click',undo);
 $('redoBtn').addEventListener('click',redo);
+
+/* ===== Gradient (own palette, independent of the text-color picker) ===== */
+const gr={e:[{h:0,s:.85,v:1},{h:220,s:.85,v:1}],act:0,pat:'h'};
+const gCss={h:'to right',v:'to bottom',bl:'to bottom left',br:'to bottom right'};
+const gRgb=i=>toRgb(gr.e[i]),gHex=i=>toHex(gRgb(i));
+function hsvOf(r,g,b,h0){
+  r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;
+  if(d){h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;h*=60;if(h<0)h+=360}
+  return{h:d?h:h0,s:mx?d/mx:0,v:mx};
+}
+function gUpdate(skipHex){
+  const e=gr.e[gr.act],hx=gHex(gr.act),grad=`linear-gradient(${gCss[gr.pat]},${gHex(0)},${gHex(1)})`;
+  $('gsv').style.background=`linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,hsl(${e.h},100%,50%))`;
+  $('gsvT').style.left=e.s*100+'%';$('gsvT').style.top=(1-e.v)*100+'%';$('gsvT').style.background=hx;
+  $('ghueT').style.left=e.h/360*100+'%';$('ghueT').style.background=`hsl(${e.h},100%,50%)`;
+  $('gS').style.background=gHex(0);$('gE').style.background=gHex(1);
+  $('gS').classList.toggle('on',gr.act===0);$('gE').classList.toggle('on',gr.act===1);
+  $('gPrev').style.background=grad;$('gBtn').style.background=grad;
+  if(!skipHex)$('ghex').value=hx;
+  document.querySelectorAll('#gPat button').forEach(b=>b.classList.toggle('on',b.dataset.p===gr.pat));
+}
+function gInfo(){
+  if($('gpanel').hidden)return;
+  const n=hasSel()?cpIdx(ta.selectionEnd)-cpIdx(ta.selectionStart):0;
+  $('gInfo').textContent=n?`Selected: ${n} chars`:'Select a range on the canvas first';
+}
+function applyGradient(){
+  if(!hasSel()){gInfo();return}
+  const a=cpIdx(ta.selectionStart),b=cpIdx(ta.selectionEnd),cells=[];let i=0;
+  doc.lines.forEach((L,r)=>{if(r)i++;let col=0;L.forEach(x=>{const w=W(x.c);if(i>=a&&i<b&&x.c!==' ')cells.push({x,r,c:col+w/2});col+=w;i++})});
+  if(!cells.length)return;
+  let x0=Infinity,x1=-Infinity;for(const o of cells){if(o.c<x0)x0=o.c;if(o.c>x1)x1=o.c}
+  const r0=cells[0].r,r1=cells[cells.length-1].r,c0=gRgb(0),c1=gRgb(1);
+  snap();
+  for(const o of cells){
+    const nx=x1>x0?(o.c-x0)/(x1-x0):0,ny=r1>r0?(o.r-r0)/(r1-r0):0;let ts;
+    if(gr.pat==='h')ts=[nx];else if(gr.pat==='v')ts=[ny];
+    else{ts=[];if(x1>x0)ts.push(gr.pat==='br'?nx:1-nx);if(r1>r0)ts.push(ny)}
+    const t=ts.length?ts.reduce((p,q)=>p+q,0)/ts.length:0;
+    o.x.k=toHex(c0.map((v,n)=>Math.round(v+(c1[n]-v)*t)));
+  }
+  render();
+}
+dragger($('gsv'),(e,b)=>{const t=gr.e[gr.act];t.s=cl((e.clientX-b.left)/b.width,0,1);t.v=1-cl((e.clientY-b.top)/b.height,0,1);gUpdate()});
+dragger($('ghue'),(e,b)=>{gr.e[gr.act].h=cl((e.clientX-b.left)/b.width,0,1)*359.99;gUpdate()});
+$('ghex').addEventListener('input',e=>{
+  const m=/^#?([0-9a-f]{6})$/i.exec(e.target.value.trim());
+  if(m){const n=parseInt(m[1],16);gr.e[gr.act]=hsvOf(n>>16,(n>>8)&255,n&255,gr.e[gr.act].h);gUpdate(true)}
+});
+$('gS').addEventListener('click',()=>{gr.act=0;gUpdate()});
+$('gE').addEventListener('click',()=>{gr.act=1;gUpdate()});
+$('gPat').addEventListener('click',e=>{const b=e.target.closest('button');if(b){gr.pat=b.dataset.p;gUpdate(true)}});
+$('gBtn').addEventListener('click',()=>{const p=$('gpanel');p.hidden=!p.hidden;if(!p.hidden){$('picker').hidden=true;gInfo()}});
+$('gApply').addEventListener('click',applyGradient);
+document.addEventListener('selectionchange',gInfo);ta.addEventListener('select',gInfo);
+gUpdate();
 
 /* ===== Python export ===== */
 const pyStr=s=>"'"+Array.from(s,c=>{
