@@ -131,6 +131,7 @@ const canvas=$('canvas'),layer=$('layer'),ta=$('ta'),stage=$('stage'),app=$('app
    The <textarea> (native selection, caret, copy/paste, IME) is the input;
    colors live in doc.lines and are drawn in a mirrored layer underneath. */
 const inner=$('inner'),mEl=$('m');mEl.textContent='M'.repeat(100);
+let saveT=0;   // autosave timer (declared early: used by render/commit)
 const doc={lines:[[]],color:'#e8eaf0',undo:[],redo:[]};
 const W=c=>{const p=c.codePointAt(0);return (p>=0x1100&&p<=0x115F)||(p>=0x2E80&&p<=0xA4CF)||(p>=0xAC00&&p<=0xD7A3)||(p>=0xF900&&p<=0xFAFF)||(p>=0xFE30&&p<=0xFE6F)||(p>=0xFF00&&p<=0xFF60)||(p>=0xFFE0&&p<=0xFFE6)||(p>=0x1F300&&p<=0x1F64F)||(p>=0x1F900&&p<=0x1F9FF)||(p>=0x20000&&p<=0x3FFFD)?2:1};
 const textOf=()=>doc.lines.map(L=>L.map(x=>x.c).join('')).join('\n');
@@ -447,7 +448,6 @@ $('dlBtn').addEventListener('click',()=>{
 
 /* ===== Autosave (per device/browser, localStorage) ===== */
 const KEY='python-cui-editor:v1';
-let saveT=0;
 function saveNow(){
   clearTimeout(saveT);
   try{localStorage.setItem(KEY,JSON.stringify({lines:doc.lines,hsv,fname:$('fname').value,gr}))}catch(e){}
