@@ -26,6 +26,7 @@ body.closed #side{display:none}
 .item{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--mut)}
 .circ{width:56px;height:56px;border-radius:50%;border:3px solid #fff;background:#444;color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 0 0 1px #000 inset}
 .circ.dl{background:var(--acc);border-color:var(--acc);font-size:10px;font-weight:700;letter-spacing:-.2px}
+.circ.imp{background:#2f9e6f;border-color:#2f9e6f;font-size:10px;font-weight:700}
 .circ.sm{width:44px;height:44px;font-size:20px;background:#2a2e3a;border:1px solid var(--line)}
 .circ:active{transform:scale(.94)}
 #toggle{position:fixed;z-index:10;top:calc(env(safe-area-inset-top) + 6px);right:calc(env(safe-area-inset-right) + 6px);width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:rgba(29,32,39,.88);color:var(--fg);font-size:22px;cursor:pointer;padding:0}
@@ -76,10 +77,13 @@ body.closed #side{display:none}
  <aside id="side" aria-label="Controls">
   <div class="row">
    <div class="item"><button class="circ" id="colorBtn" aria-label="Text color"></button>Color</div>
-   <div class="item"><button class="circ dl" id="dlBtn" aria-label="Download main.py">Download</button>Python file</div>
+   <div class="item"><button class="circ dl" id="dlBtn" aria-label="Download main.py">Download</button>Save .py</div>
    <div class="item"><button class="circ" id="gBtn" aria-label="Gradient"></button>Gradient</div>
+   <div class="item"><button class="circ imp" id="impBtn" aria-label="Import a .py file exported by this editor">Import</button>Load .py</div>
   </div>
   <label class="fname">File name<input id="fname" value="main.py" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="File name for download"></label>
+  <input type="file" id="impFile" hidden>
+  <p class="note" id="impMsg" hidden></p>
   <div id="picker" hidden>
    <div id="sv"><i class="th" id="svT"></i></div>
    <div id="hue"><i class="th" id="hueT"></i></div>
@@ -180,7 +184,7 @@ function render(){
   });
   layer.innerHTML=h;
   layer.scrollLeft=ta.scrollLeft;layer.scrollTop=ta.scrollTop;
-  ensureVisible();
+  ensureVisible();scheduleSave();
 }
 ta.addEventListener('scroll',()=>{layer.scrollLeft=ta.scrollLeft;layer.scrollTop=ta.scrollTop});
 
@@ -255,6 +259,7 @@ function commit(skipHex){
   $('hueT').style.left=hsv.h/360*100+'%';
   $('svT').style.background=hex;$('hueT').style.background=`hsl(${hsv.h},100%,50%)`;
   if(!skipHex)$('hex').value=hex;
+  scheduleSave();
   ['r','g','b'].forEach((id,n)=>{if(document.activeElement!==$(id))$(id).value=rgb[n]});
   if(hasSel()){if(needSnap){snap();needSnap=false}applyColorToSel(hex);render()}
 }
@@ -282,6 +287,41 @@ $('colorBtn').addEventListener('click',()=>{const p=$('picker');p.hidden=!p.hidd
 $('undoBtn').addEventListener('click',undo);
 $('redoBtn').addEventListener('click',redo);
 
+/* ===== Python import (files exported by this editor) ===== */
+const pyUnq=t=>t.replace(/\\(?:u([0-9a-fA-F]{4})|U([0-9a-fA-F]{8})|(['\\]))/g,(m,a,b,c)=>{
+  if(c)return c;const n=parseInt(a||b,16);return n<=0x10FFFF?String.fromCodePoint(n):''});
+function parsePy(src){
+  if(!/^DATA = \[/m.test(src))return null;
+  const re=/^\s*\((\d+), (\d+), '(\d+);(\d+);(\d+)', '((?:[^'\\]|\\.)*)'\),?\s*$/gm,rows=[];let m,n=0;
+  while((m=re.exec(src))){
+    const r=+m[1],c=+m[2],rgb=[+m[3],+m[4],+m[5]];
+    if(r>=ROWS||c>=COLS||rgb.some(v=>v>255))return null;
+    (rows[r]||(rows[r]=[])).push({c,k:toHex(rgb),t:pyUnq(m[6])});n=Math.max(n,r+1);
+  }
+  const lines=[];
+  for(let r=0;r<Math.max(n,1);r++){
+    const cells=[];let pos=0;
+    for(const run of (rows[r]||[]).sort((a,b)=>a.c-b.c)){
+      while(pos<run.c){cells.push({c:' ',k:'#e8eaf0'});pos++}
+      for(const ch of run.t){const p=ch.codePointAt(0);if(p<32||p===127)continue;cells.push({c:ch,k:run.k});pos+=W(ch)}
+    }
+    lines.push(cells);
+  }
+  return lines;
+}
+function impMsg(t){const e=$('impMsg');e.textContent=t;e.hidden=!t}
+$('impBtn').addEventListener('click',()=>$('impFile').click());
+$('impFile').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  let src='';try{src=await f.text()}catch(x){}
+  const lines=parsePy(src);
+  const t=lines&&lines.map(L=>L.map(x=>x.c).join('')).join('\n');
+  if(!lines||!valid(t)){impMsg('Could not import: not a file exported by this editor, or it does not fit the 96×27 grid.');return}
+  snap();doc.lines=lines;ta.value=t;ta.setSelectionRange(0,0);
+  $('fname').value=f.name.slice(0,60);render();
+  impMsg(`Imported ${f.name}. Use Undo to go back.`);
+});
+
 /* ===== Gradient (own palette, independent of the text-color picker) ===== */
 const gr={e:[{h:0,s:.85,v:1},{h:220,s:.85,v:1}],act:0,pat:'h'};
 const gCss={h:'to right',v:'to bottom',bl:'to bottom left',br:'to bottom right'};
@@ -300,6 +340,7 @@ function gUpdate(skipHex){
   $('gS').classList.toggle('on',gr.act===0);$('gE').classList.toggle('on',gr.act===1);
   $('gPrev').style.background=grad;$('gBtn').style.background=grad;
   if(!skipHex)$('ghex').value=hx;
+  scheduleSave();
   document.querySelectorAll('#gPat button').forEach(b=>b.classList.toggle('on',b.dataset.p===gr.pat));
 }
 function gInfo(){
@@ -404,6 +445,35 @@ $('dlBtn').addEventListener('click',()=>{
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
 
+/* ===== Autosave (per device/browser, localStorage) ===== */
+const KEY='python-cui-editor:v1';
+let saveT=0;
+function saveNow(){
+  clearTimeout(saveT);
+  try{localStorage.setItem(KEY,JSON.stringify({lines:doc.lines,hsv,fname:$('fname').value,gr}))}catch(e){}
+}
+function scheduleSave(){clearTimeout(saveT);saveT=setTimeout(saveNow,400)}
+function loadSaved(){
+  try{
+    const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o)return;
+    const hexOk=k=>typeof k==='string'&&/^#[0-9a-f]{6}$/i.test(k);
+    const L=o.lines;
+    if(Array.isArray(L)&&L.length&&L.every(r=>Array.isArray(r)&&r.every(x=>x&&typeof x.c==='string'&&Array.from(x.c).length===1&&x.c!=='\n'&&hexOk(x.k)))){
+      doc.lines=L;const t=textOf();if(valid(t))ta.value=t;else doc.lines=[[]];
+    }
+    const num=(v,a,b,d)=>typeof v==='number'&&isFinite(v)?Math.min(b,Math.max(a,v)):d;
+    if(o.hsv){hsv.h=num(o.hsv.h,0,360,hsv.h);hsv.s=num(o.hsv.s,0,1,hsv.s);hsv.v=num(o.hsv.v,0,1,hsv.v)}
+    if(typeof o.fname==='string')$('fname').value=o.fname.slice(0,60);
+    if(o.gr&&Array.isArray(o.gr.e)&&o.gr.e.length===2){
+      gr.e=o.gr.e.map(e=>({h:num(e&&e.h,0,360,0),s:num(e&&e.s,0,1,1),v:num(e&&e.v,0,1,1)}));
+      gr.act=o.gr.act===1?1:0;if(gCss[o.gr.pat])gr.pat=o.gr.pat;
+    }
+  }catch(e){}
+}
+addEventListener('pagehide',saveNow);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
+$('fname').addEventListener('input',scheduleSave);
+
 /* ===== Sidebar ===== */
 $('side').addEventListener('mousedown',e=>{if(!e.target.closest('input'))e.preventDefault()});
 const mq=matchMedia('(max-width:900px),(max-height:520px)');
@@ -418,8 +488,9 @@ $('scrim').addEventListener('click',()=>setClosed(true));
 mq.addEventListener('change',()=>setClosed(mq.matches));
 ta.addEventListener('focus',()=>{});
 
+loadSaved();
 setClosed(mq.matches);
-commit();layout();render();
+commit();gUpdate();layout();render();
 setTimeout(()=>{if(!mq.matches)ta.focus({preventScroll:true})},0);
 })();
 </script>
