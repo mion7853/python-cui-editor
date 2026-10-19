@@ -55,6 +55,8 @@ body.closed #side{display:none}
 #ghex{width:100%;min-width:0;height:36px;border-radius:6px;border:1px solid var(--line);background:#14161b;color:var(--fg);padding:0 8px;font:16px monospace}
 .wide{height:44px;border-radius:10px;border:0;background:var(--acc);color:#fff;font-size:15px;font-weight:600;cursor:pointer}
 .wide:active{transform:scale(.98)}
+.fname{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--mut)}
+#fname{width:100%;min-width:0;height:36px;border-radius:6px;border:1px solid var(--line);background:#14161b;color:var(--fg);padding:0 8px;font:16px monospace}
 @media (max-width:900px),(max-height:520px){
  #stage{padding:0}
  #side{position:absolute;right:0;top:0;bottom:0;display:flex!important;transform:translateX(100%);visibility:hidden;transition:transform .18s,visibility 0s .18s;padding-right:calc(14px + env(safe-area-inset-right));box-shadow:-8px 0 24px rgba(0,0,0,.5);width:min(var(--side),70vw)}
@@ -74,9 +76,10 @@ body.closed #side{display:none}
  <aside id="side" aria-label="Controls">
   <div class="row">
    <div class="item"><button class="circ" id="colorBtn" aria-label="Text color"></button>Color</div>
-   <div class="item"><button class="circ dl" id="dlBtn" aria-label="Download main.py">Download</button>main.py</div>
+   <div class="item"><button class="circ dl" id="dlBtn" aria-label="Download main.py">Download</button>Python file</div>
    <div class="item"><button class="circ" id="gBtn" aria-label="Gradient"></button>Gradient</div>
   </div>
+  <label class="fname">File name<input id="fname" value="main.py" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="File name for download"></label>
   <div id="picker" hidden>
    <div id="sv"><i class="th" id="svT"></i></div>
    <div id="hue"><i class="th" id="hueT"></i></div>
@@ -390,9 +393,14 @@ function buildPython(){
     ''
   ].join('\n');
 }
+function fileName(){
+  let n=$('fname').value.replace(/[\\/:*?"<>|\u0000-\u001F]/g,'').trim().replace(/^\.+/,'');
+  if(!n)n='main';
+  return /\.py$/i.test(n)?n:n+'.py';
+}
 $('dlBtn').addEventListener('click',()=>{
   const url=URL.createObjectURL(new Blob([buildPython()],{type:'text/x-python;charset=utf-8'}));
-  const a=document.createElement('a');a.href=url;a.download='main.py';document.body.appendChild(a);a.click();a.remove();
+  const a=document.createElement('a');a.href=url;a.download=fileName();document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
 
