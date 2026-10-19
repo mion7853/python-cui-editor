@@ -59,6 +59,9 @@ body.closed #side{display:none}
 .wide:active{transform:scale(.98)}
 .fname{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--mut)}
 #fname{width:100%;min-width:0;height:36px;border-radius:6px;border:1px solid var(--line);background:#14161b;color:var(--fg);padding:0 8px;font:16px monospace}
+.aligns{display:flex;gap:8px}
+.alg{flex:1;min-width:0;height:44px;border-radius:10px;border:2px solid var(--line);background:#2a2e3a;color:var(--fg);padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.alg.on{border-color:var(--acc);background:#2f3a5c}
 @media (max-width:900px),(max-height:520px){
  #stage{padding:0}
  #side{position:absolute;right:0;top:0;bottom:0;display:flex!important;transform:translateX(100%);visibility:hidden;transition:transform .18s,visibility 0s .18s;padding-right:calc(14px + env(safe-area-inset-right));box-shadow:-8px 0 24px rgba(0,0,0,.5);width:min(var(--side),70vw)}
@@ -82,6 +85,7 @@ body.closed #side{display:none}
    <div class="item"><button class="circ" id="gBtn" aria-label="Gradient"></button>Gradient</div>
    <div class="item"><button class="circ imp" id="impBtn" aria-label="Import a .py file exported by this editor">Import</button>Load .py</div>
   </div>
+  <div class="fname">Alignment for new text<div class="aligns" role="radiogroup" aria-label="Alignment for new text"><button class="alg on" data-a="l" role="radio" aria-checked="true" aria-label="Align left"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18M3 10h12M3 15h18M3 20h12"/></svg></button><button class="alg" data-a="c" role="radio" aria-checked="false" aria-label="Align center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18M6 10h12M3 15h18M6 20h12"/></svg></button><button class="alg" data-a="r" role="radio" aria-checked="false" aria-label="Align right"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18M9 10h12M3 15h18M9 20h12"/></svg></button></div></div>
   <label class="fname">File name<input id="fname" value="main.py" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="File name for download"></label>
   <input type="file" id="impFile" hidden>
   <p class="note" id="impMsg" hidden></p>
@@ -133,19 +137,49 @@ const canvas=$('canvas'),layer=$('layer'),ta=$('ta'),stage=$('stage'),app=$('app
    colors live in doc.lines and are drawn in a mirrored layer underneath. */
 const inner=$('inner'),mEl=$('m');mEl.textContent='M'.repeat(100);
 let saveT=0;   // autosave timer (declared early: used by render/commit)
-const doc={lines:[[]],color:'#e8eaf0',undo:[],redo:[]};
+const doc={lines:[[]],color:'#e8eaf0',align:'l',undo:[],redo:[]};
 const W=c=>{const p=c.codePointAt(0);return (p>=0x1100&&p<=0x115F)||(p>=0x2E80&&p<=0xA4CF)||(p>=0xAC00&&p<=0xD7A3)||(p>=0xF900&&p<=0xFAFF)||(p>=0xFE30&&p<=0xFE6F)||(p>=0xFF00&&p<=0xFF60)||(p>=0xFFE0&&p<=0xFFE6)||(p>=0x1F300&&p<=0x1F64F)||(p>=0x1F900&&p<=0x1F9FF)||(p>=0x20000&&p<=0x3FFFD)?2:1};
 const textOf=()=>doc.lines.map(L=>L.map(x=>x.c).join('')).join('\n');
 const cpIdx=off=>Array.from(ta.value.slice(0,off)).length;
 const hasSel=()=>ta.selectionStart!==ta.selectionEnd;
 const valid=v=>{const L=v.split('\n');return L.length<=ROWS&&L.every(t=>{let w=0;for(const c of t)w+=W(c);return w<=COLS})};
-let composing=false,prevSel=[0,0],compBase=null;
+let composing=false,prevSel=[0,0],compBase=null,lastKind='';
 const saveSel=()=>{prevSel=[ta.selectionStart,ta.selectionEnd]};
 const snap=sel=>{doc.undo.push({l:JSON.stringify(doc.lines),s:sel||[ta.selectionStart,ta.selectionEnd]});if(doc.undo.length>100)doc.undo.shift();doc.redo.length=0};
 const cur=()=>({l:JSON.stringify(doc.lines),s:[ta.selectionStart,ta.selectionEnd]});
 function load(o){doc.lines=JSON.parse(o.l);ta.value=textOf();ta.setSelectionRange(o.s[0],o.s[1]);render()}
 function undo(){if(doc.undo.length){doc.redo.push(cur());load(doc.undo.pop())}}
 function redo(){if(doc.redo.length){doc.undo.push(cur());load(doc.redo.pop())}}
+
+/* Alignment: only NEW text is aligned. Typed cells get a:'c'|'r'; the auto-inserted
+   leading spaces get p:1. A line is re-aligned only if all its non-pad cells were typed
+   with the same alignment, so older text is never touched. Pasted blocks are padded once. */
+function alignLines(lines,caret,mode){
+  if(mode==='l')return caret;
+  let r=0,rest=caret;
+  while(r<lines.length-1&&rest>lines[r].length){rest-=lines[r].length+1;r++}
+  const L=lines[r];let pad=0;while(pad<L.length&&L[pad].p)pad++;
+  const body=L.slice(pad);
+  if(!body.length){if(pad){lines[r]=[];return caret-rest}return caret}
+  if(!body.every(x=>x.a===mode))return caret;
+  const w=body.reduce((t,x)=>t+W(x.c),0),n=Math.max(0,mode==='c'?Math.floor((COLS-w)/2):COLS-w);
+  if(n===pad)return caret;
+  lines[r]=Array.from({length:n},()=>({c:' ',k:doc.color,p:1})).concat(body);
+  return caret-rest+(rest>=pad?rest-pad+n:n);
+}
+function padPaste(ins,old,p){
+  const mode=doc.align;let col=0;
+  for(let j=p-1;j>=0&&old[j].c!=='\n';j--)col+=W(old[j].c);
+  const ls=ins.join('').split('\n');
+  const w=Math.max(...ls.map(t=>{let n=0;for(const c of t)n+=W(c);return n}));
+  const target=Math.max(0,mode==='c'?Math.floor((COLS-w)/2):COLS-w);
+  return Array.from(ls.map((t,j)=>' '.repeat(Math.max(0,target-(j?0:col)))+t).join('\n'));
+}
+function realign(){   // after IME composition ends
+  if(doc.align==='l')return;
+  const nc=alignLines(doc.lines,cpIdx(ta.selectionEnd),doc.align),nt=textOf();
+  if(nt!==ta.value){ta.value=nt;const off=Array.from(nt).slice(0,nc).join('').length;ta.setSelectionRange(off,off);render()}
+}
 
 /* textarea text -> model (inserted chars get the current color, others keep theirs) */
 function sync(){
@@ -157,18 +191,30 @@ function sync(){
   }
   const prev=textOf();
   if(v===prev){render();return}
-  if(!composing&&!valid(v)){ta.value=prev;ta.setSelectionRange(prevSel[0],prevSel[1]);return}
-  if(!composing)snap(prevSel);
   const old=[];doc.lines.forEach((L,r)=>{if(r)old.push({c:'\n'});L.forEach(x=>old.push(x))});
   const nw=Array.from(v),cn=cpIdx(ta.selectionEnd),mm=Math.min(old.length,nw.length);
   const tailOk=n=>{if(n<0||n>mm)return false;for(let i=0;i<n;i++)if(old[old.length-1-i].c!==nw[nw.length-1-i])return false;return true};
   let s=nw.length-cn;                       // the edit ends at the caret
   if(!tailOk(s)){s=0;let p0=0;while(p0<mm&&old[p0].c===nw[p0])p0++;while(s<mm-p0&&old[old.length-1-s].c===nw[nw.length-1-s])s++}
   let p=0;const m2=mm-s;while(p<m2&&old[p].c===nw[p])p++;
-  const mid=nw.slice(p,nw.length-s).map(c=>({c,k:doc.color}));
-  const all=old.slice(0,p).concat(mid,old.slice(old.length-s));
-  const lines=[[]];for(const x of all){if(x.c==='\n')lines.push([]);else lines[lines.length-1].push(x)}
-  doc.lines=lines;render();
+  const raw=nw.slice(p,nw.length-s),mode=doc.align;
+  const pasted=/^insertFrom(Paste|Drop)/.test(lastKind);lastKind='';
+  const build=ins=>{
+    const mid=ins.map(c=>{const x={c,k:doc.color};if(!pasted&&mode!=='l')x.a=mode;return x});
+    const all=old.slice(0,p).concat(mid,old.slice(old.length-s));
+    const lines=[[]];for(const x of all){if(x.c==='\n')lines.push([]);else lines[lines.length-1].push(x)}
+    let caret=cn+ins.length-raw.length;
+    if(!pasted&&mode!=='l'&&!composing)caret=alignLines(lines,caret,mode);
+    return{lines,caret,nt:lines.map(L=>L.map(x=>x.c).join('')).join('\n')};
+  };
+  const padded=pasted&&mode!=='l'&&raw.length;
+  let res=build(padded?padPaste(raw,old,p):raw);
+  if(padded&&!valid(res.nt))res=build(raw);   // padding does not fit: paste as-is
+  if(!composing&&!valid(res.nt)){ta.value=prev;ta.setSelectionRange(prevSel[0],prevSel[1]);return}
+  if(!composing)snap(prevSel);
+  doc.lines=res.lines;
+  if(res.nt!==ta.value){ta.value=res.nt;const off=Array.from(res.nt).slice(0,res.caret).join('').length;ta.setSelectionRange(off,off)}
+  render();
 }
 function applyColorToSel(hex){
   const a=cpIdx(ta.selectionStart),b=cpIdx(ta.selectionEnd);let i=0;
@@ -225,14 +271,14 @@ document.addEventListener('selectionchange',()=>{if(document.activeElement===ta)
 
 /* ===== Input events ===== */
 ta.addEventListener('beforeinput',e=>{
-  saveSel();
+  saveSel();lastKind=e.inputType;
   if(e.inputType==='historyUndo'){e.preventDefault();undo()}
   else if(e.inputType==='historyRedo'){e.preventDefault();redo()}
 });
 ta.addEventListener('input',()=>sync());
 ta.addEventListener('compositionstart',()=>{saveSel();snap(prevSel);compBase=doc.undo[doc.undo.length-1];composing=true});
 ta.addEventListener('compositionend',()=>{
-  composing=false;sync();
+  composing=false;sync();realign();
   if(!valid(ta.value)){load(compBase);doc.undo.pop()}
 });
 ta.addEventListener('keydown',e=>{
@@ -451,7 +497,7 @@ $('dlBtn').addEventListener('click',()=>{
 const KEY='python-cui-editor:v1';
 function saveNow(){
   clearTimeout(saveT);
-  try{localStorage.setItem(KEY,JSON.stringify({lines:doc.lines,hsv,fname:$('fname').value,gr}))}catch(e){}
+  try{localStorage.setItem(KEY,JSON.stringify({lines:doc.lines,align:doc.align,hsv,fname:$('fname').value,gr}))}catch(e){}
 }
 function scheduleSave(){clearTimeout(saveT);saveT=setTimeout(saveNow,400)}
 function loadSaved(){
@@ -464,6 +510,7 @@ function loadSaved(){
     }
     const num=(v,a,b,d)=>typeof v==='number'&&isFinite(v)?Math.min(b,Math.max(a,v)):d;
     if(o.hsv){hsv.h=num(o.hsv.h,0,360,hsv.h);hsv.s=num(o.hsv.s,0,1,hsv.s);hsv.v=num(o.hsv.v,0,1,hsv.v)}
+    if(o.align==='c'||o.align==='r')doc.align=o.align;
     if(typeof o.fname==='string')$('fname').value=o.fname.slice(0,60);
     if(o.gr&&Array.isArray(o.gr.e)&&o.gr.e.length===2){
       gr.e=o.gr.e.map(e=>({h:num(e&&e.h,0,360,0),s:num(e&&e.s,0,1,1),v:num(e&&e.v,0,1,1)}));
@@ -474,6 +521,10 @@ function loadSaved(){
 addEventListener('pagehide',saveNow);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
 $('fname').addEventListener('input',scheduleSave);
+
+/* ===== Alignment buttons ===== */
+function alignUI(){document.querySelectorAll('.alg').forEach(b=>{const on=b.dataset.a===doc.align;b.classList.toggle('on',on);b.setAttribute('aria-checked',String(on))})}
+document.querySelectorAll('.alg').forEach(b=>b.addEventListener('click',()=>{doc.align=b.dataset.a;alignUI();scheduleSave()}));
 
 /* ===== Sidebar ===== */
 $('side').addEventListener('mousedown',e=>{if(!e.target.closest('input'))e.preventDefault()});
@@ -491,7 +542,7 @@ ta.addEventListener('focus',()=>{});
 
 loadSaved();
 setClosed(mq.matches);
-commit();gUpdate();layout();render();
+commit();gUpdate();alignUI();layout();render();
 setTimeout(()=>{if(!mq.matches)ta.focus({preventScroll:true})},0);
 })();
 </script>
